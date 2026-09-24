@@ -27,14 +27,9 @@ router.register(r'gestiones', GestionLogisticaViewSet, basename='gestion')
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('api/health/', health, name='health'), 
     path('api/', include(router.urls)),
-    path('api/schema', SpectacularAPIView.as_view(), name='schema'),
-    path('api/docs', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
+    path('api/schema/', SpectacularAPIView.as_view(), name='schema'), 
+    path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'), 
 ]
 
-'''
-urlpatterns = [
-    path('admin/', admin.site.urls),
-    path('api/health/', health, name='health'),
-]
-'''
