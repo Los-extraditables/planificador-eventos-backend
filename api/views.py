@@ -3,13 +3,13 @@ from rest_framework.decorators import api_view, permission_classes, authenticati
 from rest_framework.authentication import SessionAuthentication
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.response import Response
-from rest_framework import viewsets, generics
+from rest_framework import viewsets, generics, status
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.contrib.auth.models import User
 from django.contrib.auth.tokens import default_token_generator
 from django.utils import timezone
 from django.utils.http import urlsafe_base64_encode
-from django.core.mail import EmailMultiAlternatives  # <-- Importante para enviar correos HTML con Gmail
+from django.core.mail import EmailMultiAlternatives 
 from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes
 from .models import Evento, GestionLogistica
 from .serializers import (
@@ -58,10 +58,8 @@ def password_reset_request_view(request):
                 token = default_token_generator.make_token(user)
                 uid = urlsafe_base64_encode(str(user.pk).encode())
                 
-                # Enlace que consumirá tu frontend (React/Vite)
                 reset_link = f"http://localhost:5173/reset-password?uid={uid}&token={token}"
                 
-                # Plantilla HTML corporativa de Evora
                 html_message = f"""
                 <!DOCTYPE html>
                 <html lang="es">
@@ -70,65 +68,29 @@ def password_reset_request_view(request):
                     <meta name="viewport" content="width=device-width, initial-scale=1.0">
                     <title>Restablecer contraseña - Evora</title>
                 </head>
-                <body style="margin: 0; padding: 0; background-color: #f3f4f6; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased;">
+                <body style="margin: 0; padding: 0; background-color: #f3f4f6; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
                     <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f3f4f6; padding: 40px 0;">
                         <tr>
                             <td align="center">
-                                <table role="presentation" style="width: 100%; max-width: 540px; border-collapse: collapse; background-color: #ffffff; border-radius: 16px; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.08); overflow: hidden;">
-                                    
-                                    <!-- Encabezado con degradado -->
+                                <table role="presentation" style="width: 100%; max-width: 540px; border-collapse: collapse; background-color: #ffffff; border-radius: 16px; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.08);">
                                     <tr>
                                         <td style="padding: 45px 40px 35px 40px; text-align: center; background: linear-gradient(135deg, #2e1065 0%, #4c1d95 50%, #6d28d9 100%); border-top-left-radius: 16px; border-top-right-radius: 16px;">
-                                            <div style="display: inline-block; background: rgba(255, 255, 255, 0.15); padding: 8px 18px; border-radius: 8px; margin-bottom: 15px;">
-                                                <span style="color: #ffffff; font-size: 18px; font-weight: 700; letter-spacing: 0.5px;">Evora</span>
-                                            </div>
-                                            <h2 style="color: #ffffff; font-size: 22px; font-weight: 600; margin: 0; letter-spacing: 0.3px;">Restablecer contraseña</h2>
+                                            <h2 style="color: #ffffff; font-size: 22px; font-weight: 600; margin: 0;">Restablecer contraseña</h2>
                                         </td>
                                     </tr>
-                                    
-                                    <!-- Contenido de la tarjeta blanca -->
                                     <tr>
                                         <td style="padding: 40px 40px 35px 40px;">
-                                            <p style="color: #334155; font-size: 16px; line-height: 1.5; margin-top: 0; margin-bottom: 16px;">
-                                                Hola,
-                                            </p>
-                                            <p style="color: #475569; font-size: 15px; line-height: 1.6; margin-top: 0; margin-bottom: 28px;">
-                                                Recibimos una solicitud para actualizar la contraseña de tu cuenta en Evora. Haz clic en el botón inferior para continuar con el proceso:
-                                            </p>
-                                            
-                                            <!-- Botón de acción principal -->
-                                            <table role="presentation" style="width: 100%; border-collapse: collapse; margin-bottom: 30px;">
+                                            <p style="color: #334155; font-size: 16px; line-height: 1.5; margin-top: 0;">Hola,</p>
+                                            <p style="color: #475569; font-size: 15px; line-height: 1.6;">Recibimos una solicitud para actualizar la contraseña de tu cuenta en Evora. Haz clic en el botón inferior:</p>
+                                            <table role="presentation" style="width: 100%; border-collapse: collapse; margin: 30px 0;">
                                                 <tr>
                                                     <td align="center">
-                                                        <a href="{reset_link}" target="_blank" style="background-color: #2e1065; color: #ffffff; padding: 14px 32px; text-decoration: none; border-radius: 10px; font-weight: 600; display: inline-block; font-size: 15px; box-shadow: 0 4px 12px rgba(46, 16, 101, 0.25);">Cambiar mi contraseña</a>
+                                                        <a href="{reset_link}" target="_blank" style="background-color: #2e1065; color: #ffffff; padding: 14px 32px; text-decoration: none; border-radius: 10px; font-weight: 600; display: inline-block; font-size: 15px;">Cambiar mi contraseña</a>
                                                     </td>
                                                 </tr>
                                             </table>
-                                            
-                                            <p style="color: #64748b; font-size: 13px; line-height: 1.5; margin-bottom: 8px;">
-                                                Si tienes problemas con el botón, copia y pega el siguiente enlace en tu navegador web:
-                                            </p>
-                                            <p style="background-color: #f8fafc; border: 1px solid #e2e8f0; padding: 12px; border-radius: 8px; font-size: 12px; color: #6d28d9; word-break: break-all; margin-top: 0; margin-bottom: 28px;">
-                                                <a href="{reset_link}" target="_blank" style="color: #6d28d9; text-decoration: underline;">{reset_link}</a>
-                                            </p>
-                                            
-                                            <div style="border-top: 1px solid #f1f5f9; padding-top: 20px; margin-top: 10px;">
-                                                <p style="color: #94a3b8; font-size: 12px; line-height: 1.5; margin: 0;">
-                                                    Si no solicitaste este cambio, puedes ignorar este mensaje con tranquilidad; tu cuenta seguirá estando protegida.
-                                                </p>
-                                            </div>
                                         </td>
                                     </tr>
-                                    
-                                    <!-- Pie de página -->
-                                    <tr>
-                                        <td style="background-color: #f8fafc; padding: 20px 40px; text-align: center; border-top: 1px solid #f1f5f9;">
-                                            <p style="color: #94a3b8; font-size: 12px; margin: 0;">
-                                                Plataforma de Gestión Evora &bull; 2026
-                                            </p>
-                                        </td>
-                                    </tr>
-                                    
                                 </table>
                             </td>
                         </tr>
@@ -137,11 +99,9 @@ def password_reset_request_view(request):
                 </html>
                 """
                 
-                # Texto plano alternativo por si el cliente de correo no soporta HTML
                 subject = "Restablece tu contraseña - Evora"
-                text_content = f"Hola, recibe este mensaje para restablecer tu contraseña en Evora. Copia y pega el siguiente enlace: {reset_link}"
+                text_content = f"Restablece tu contraseña en Evora ingresando al siguiente enlace: {reset_link}"
                 
-                # Envío usando el sistema SMTP de Django (toma los datos del .env automáticamente)
                 email_message = EmailMultiAlternatives(subject, text_content, None, [user.email])
                 email_message.attach_alternative(html_message, "text/html")
                 email_message.send()
@@ -160,17 +120,12 @@ def password_reset_request_view(request):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def password_reset_confirm_view(request):
-    """
-    Recibe el uid, el token y la nueva contraseña para actualizarla en la base de datos.
-    """
     serializer = PasswordResetConfirmSerializer(data=request.data)
     if serializer.is_valid():
         user = serializer.validated_data['user']
         new_password = serializer.validated_data['new_password']
-        
         user.set_password(new_password)
         user.save()
-        
         return Response({"detail": "Contraseña actualizada exitosamente."}, status=200)
     return Response(serializer.errors, status=400)
 
@@ -260,3 +215,11 @@ class GestionLogisticaViewSet(viewsets.ModelViewSet):
         return GestionLogistica.objects.filter(
             evento__organizador=self.request.user
         ).order_by('plazo', 'horas_estimadas')
+
+    def perform_create(self, serializer):
+        # Validamos que el evento al que se le quiere agregar la gestión pertenezca realmente al usuario logueado
+        evento = serializer.validated_data.get('evento')
+        if evento.organizador != self.request.user:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("No puedes agregar gestiones a un evento que no te pertenece.")
+        serializer.save()

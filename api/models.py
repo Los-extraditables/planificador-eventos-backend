@@ -7,6 +7,7 @@ class Evento(models.Model):
     nombre = models.CharField(max_length=200)
     tipo = models.CharField(max_length=100)
     fecha = models.DateField()
+    limite_diario_horas = models.DecimalField(max_digits=5, decimal_places=2, default=6.0) # Campo agregado según la interfaz de creación
     creado_en = models.DateTimeField(auto_now_add=True)
     
     # Campo agregado para vincular el evento estrictamente al usuario logueado

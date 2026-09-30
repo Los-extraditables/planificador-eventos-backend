@@ -15,11 +15,13 @@ class GestionLogisticaSerializer(serializers.ModelSerializer):
         return value
 
 class EventoSerializer(serializers.ModelSerializer):
-    gestiones = GestionLogisticaSerializer(many=True, required=False)
+    # 'required=False' y 'allow_empty=True' permiten que el evento se cree sin plan logístico inicial
+    gestiones = GestionLogisticaSerializer(many=True, required=False, allow_empty=True)
 
     class Meta:
         model = Evento
-        fields = ['id', 'nombre', 'tipo', 'fecha', 'creado_en', 'organizador', 'gestiones']
+        # Se incluye 'limite_diario_horas' que viene del formulario principal de la interfaz
+        fields = ['id', 'nombre', 'tipo', 'fecha', 'limite_diario_horas', 'creado_en', 'organizador', 'gestiones']
         read_only_fields = ['organizador'] # El backend asigna esto automáticamente por seguridad
     
     def validate_nombre(self, value):
@@ -33,8 +35,11 @@ class EventoSerializer(serializers.ModelSerializer):
         return value
     
     def create(self, validated_data):
+        # Si el usuario no mandó gestiones, se asigna una lista vacía por defecto
         gestiones_data = validated_data.pop('gestiones', [])
         evento = Evento.objects.create(**validated_data)
+        
+        # Si se enviaron subtareas iniciales, se crean asociadas al evento; si no, se omite
         for gestion_data in gestiones_data:
             GestionLogistica.objects.create(evento=evento, **gestion_data)
         return evento
