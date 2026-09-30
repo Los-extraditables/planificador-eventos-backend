@@ -7,7 +7,8 @@ from .models import Evento, GestionLogistica
 class GestionLogisticaSerializer(serializers.ModelSerializer):
     class Meta:
         model = GestionLogistica
-        fields = ['id', 'descripcion', 'plazo', 'horas_estimadas', 'completada']
+        # Se añade 'evento' para permitir que el frontend lo envíe al crear gestiones individuales
+        fields = ['id', 'evento', 'descripcion', 'plazo', 'horas_estimadas', 'completada']
     
     def validate_horas_estimadas(self, value):
         if value <= 0:
