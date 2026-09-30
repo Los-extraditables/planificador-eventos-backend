@@ -23,11 +23,11 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.1/howto/deployment/checklist/
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-eg#qjt7oya#cf*(^mpiw(q8kuji_+4*y^2v1lo1wo@j*t10r*o'
+# CORREGIDO: Ahora lee la clave secreta desde el .env por seguridad
+SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-eg#qjt7oya#cf*(^mpiw(q8kuji_+4*y^2v1lo1wo@j*t10r*o')
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+# CORREGIDO: En local será True, pero en la nube podrás poner DEBUG=False en las variables de entorno
+DEBUG = os.getenv('DEBUG', 'True') == 'True'
 
 ALLOWED_HOSTS = ['*']
 
@@ -43,12 +43,16 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'corsheaders',
     'rest_framework',
+    'rest_framework_simplejwt',
     'drf_spectacular',
     'api',
 ]
 
-REST_FRAMEWORK ={
+REST_FRAMEWORK = {
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ),
 }
 
 MIDDLEWARE = [
@@ -62,7 +66,7 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-# Permitir peticiones desde Vercel "solo para desarrollo local"
+# Permitir peticiones desde Vercel y entorno local
 CORS_ALLOWED_ORIGINS = [
     "https://planificador-eventos-frontend-five.vercel.app",
     "http://localhost:5173",
@@ -91,8 +95,6 @@ WSGI_APPLICATION = 'config.wsgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/6.1/ref/settings/#databases
-
-import os
 
 DATABASES = {
     'default': {
@@ -143,11 +145,11 @@ USE_TZ = True
 STATIC_URL = 'static/'
 
 
-# Email
-# https://docs.djangoproject.com/en/6.1/topics/email/#topic-email-configuration
-
-MAILERS = {
-    'default': {
-        'BACKEND': 'django.core.mail.backends.console.EmailBackend',
-    },
-}
+# Configuración de Correo Electrónico (Gmail SMTP)
+EMAIL_BACKEND = os.getenv('EMAIL_BACKEND', 'django.core.mail.backends.smtp.EmailBackend')
+EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.gmail.com')
+EMAIL_PORT = int(os.getenv('EMAIL_PORT', 587))
+EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True') == 'True'
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
+DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL')

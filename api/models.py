@@ -1,12 +1,16 @@
 from django.db import models
+from django.contrib.auth.models import User
 
-# Modelos base 
+# Modelos base con aislamiento por organizador
 
 class Evento(models.Model):
     nombre = models.CharField(max_length=200)
     tipo = models.CharField(max_length=100)
     fecha = models.DateField()
     creado_en = models.DateTimeField(auto_now_add=True)
+    
+    # Campo agregado para vincular el evento estrictamente al usuario logueado
+    organizador = models.ForeignKey(User, on_delete=models.CASCADE, related_name='eventos', null=True, blank=True)
 
     def __str__(self):
         return f"{self.nombre} ({self.tipo})"
