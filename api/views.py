@@ -58,8 +58,9 @@ def password_reset_request_view(request):
                 token = default_token_generator.make_token(user)
                 uid = urlsafe_base64_encode(str(user.pk).encode())
                 
-                # Enlace hacia tu frontend (ajústalo a tu dominio de producción si es necesario)
-                reset_link = f"http://localhost:5173/reset-password?uid={uid}&token={token}"
+                # Obtener la URL del frontend desde las variables de entorno (con fallback a localhost si no está definida)
+                frontend_url = os.environ.get('FRONTEND_URL', 'http://localhost:5173')
+                reset_link = f"{frontend_url}/reset-password?uid={uid}&token={token}"
                 
                 html_message = f"""
                 <!DOCTYPE html>
