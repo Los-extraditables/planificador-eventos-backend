@@ -1,4 +1,5 @@
 import os
+import resend
 from rest_framework.decorators import api_view, permission_classes, authentication_classes
 from rest_framework.authentication import SessionAuthentication
 from rest_framework_simplejwt.authentication import JWTAuthentication
@@ -9,7 +10,6 @@ from django.contrib.auth.models import User
 from django.contrib.auth.tokens import default_token_generator
 from django.utils import timezone
 from django.utils.http import urlsafe_base64_encode
-from django.core.mail import EmailMultiAlternatives 
 from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes
 from .models import Evento, GestionLogistica
 from .serializers import (
@@ -19,6 +19,9 @@ from .serializers import (
     PasswordResetRequestSerializer,
     PasswordResetConfirmSerializer
 )
+
+# Inicializamos Resend con la variable de entorno configurada en Render
+resend.api_key = os.environ.get("RESEND_API_KEY")
 
 
 @api_view(['GET'])
@@ -47,7 +50,7 @@ class RegisterView(generics.CreateAPIView):
 @permission_classes([AllowAny])
 def password_reset_request_view(request):
     """
-    Recibe el email, genera el token y envía el correo corporativo de Evora usando Gmail SMTP de Django.
+    Recibe el email, genera el token y envía el correo corporativo de Evora usando la API HTTP de Resend.
     """
     serializer = PasswordResetRequestSerializer(data=request.data)
     if serializer.is_valid():
@@ -58,6 +61,7 @@ def password_reset_request_view(request):
                 token = default_token_generator.make_token(user)
                 uid = urlsafe_base64_encode(str(user.pk).encode())
                 
+                # Enlace hacia tu frontend (puedes cambiarlo por tu URL de Vercel cuando despliegues)
                 reset_link = f"http://localhost:5173/reset-password?uid={uid}&token={token}"
                 
                 html_message = f"""
@@ -99,15 +103,19 @@ def password_reset_request_view(request):
                 </html>
                 """
                 
-                subject = "Restablece tu contraseña - Evora"
-                text_content = f"Restablece tu contraseña en Evora ingresando al siguiente enlace: {reset_link}"
+                # Parámetros para el envío mediante la API de Resend
+                params = {
+                    "from": "Evora <onboarding@resend.dev>",
+                    "to": [user.email],
+                    "subject": "Restablece tu contraseña - Evora",
+                    "html": html_message,
+                }
                 
-                email_message = EmailMultiAlternatives(subject, text_content, None, [user.email])
-                email_message.attach_alternative(html_message, "text/html")
-                email_message.send()
+                response = resend.Emails.send(params)
+                print("Correo enviado exitosamente con Resend:", response)
                 
         except Exception as e:
-            print(f"Error al enviar correo de recuperación con Gmail: {e}")
+            print(f"Error al enviar correo de recuperación con Resend: {e}")
             
         return Response({"detail": "Si el correo existe, se han enviado las instrucciones."}, status=200)
     return Response(serializer.errors, status=400)
@@ -217,7 +225,6 @@ class GestionLogisticaViewSet(viewsets.ModelViewSet):
         ).order_by('plazo', 'horas_estimadas')
 
     def perform_create(self, serializer):
-        # Validamos que el evento al que se le quiere agregar la gestión pertenezca realmente al usuario logueado
         evento = serializer.validated_data.get('evento')
         if evento.organizador != self.request.user:
             from rest_framework.exceptions import PermissionDenied
