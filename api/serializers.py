@@ -5,9 +5,16 @@ from rest_framework import serializers
 from .models import Evento, GestionLogistica
 
 class GestionLogisticaSerializer(serializers.ModelSerializer):
+    # 'required=False' y 'allow_null=True' permiten que las gestiones anidadas 
+    # se validen correctamente antes de que el evento exista en la base de datos.
+    evento = serializers.PrimaryKeyRelatedField(
+        queryset=Evento.objects.all(), 
+        required=False, 
+        allow_null=True
+    )
+
     class Meta:
         model = GestionLogistica
-        # Se añade 'evento' para permitir que el frontend lo envíe al crear gestiones individuales
         fields = ['id', 'evento', 'descripcion', 'plazo', 'horas_estimadas', 'completada']
     
     def validate_horas_estimadas(self, value):
@@ -16,14 +23,12 @@ class GestionLogisticaSerializer(serializers.ModelSerializer):
         return value
 
 class EventoSerializer(serializers.ModelSerializer):
-    # 'required=False' y 'allow_empty=True' permiten que el evento se cree sin plan logístico inicial
     gestiones = GestionLogisticaSerializer(many=True, required=False, allow_empty=True)
 
     class Meta:
         model = Evento
-        # Se incluye 'limite_diario_horas' que viene del formulario principal de la interfaz
         fields = ['id', 'nombre', 'tipo', 'fecha', 'limite_diario_horas', 'creado_en', 'organizador', 'gestiones']
-        read_only_fields = ['organizador'] # El backend asigna esto automáticamente por seguridad
+        read_only_fields = ['organizador']
     
     def validate_nombre(self, value):
         if not value.strip():
@@ -36,12 +41,13 @@ class EventoSerializer(serializers.ModelSerializer):
         return value
     
     def create(self, validated_data):
-        # Si el usuario no mandó gestiones, se asigna una lista vacía por defecto
         gestiones_data = validated_data.pop('gestiones', [])
         evento = Evento.objects.create(**validated_data)
         
-        # Si se enviaron subtareas iniciales, se crean asociadas al evento; si no, se omite
         for gestion_data in gestiones_data:
+            # Evitamos conflictos si el JSON trae 'evento' explícitamente
+            gestion_data.pop('evento', None)
+            
             GestionLogistica.objects.create(evento=evento, **gestion_data)
         return evento
 
@@ -65,10 +71,8 @@ class RegisterSerializer(serializers.ModelSerializer):
         nombre_completo = validated_data.pop('nombre_completo', '')
         email = validated_data.get('email')
         
-        # Usamos el correo electrónico como username automáticamente
         username = email
 
-        # Separamos el nombre completo en first_name y last_name
         partes_nombre = nombre_completo.split(' ', 1)
         first_name = partes_nombre[0] if partes_nombre else ''
         last_name = partes_nombre[1] if len(partes_nombre) > 1 else ''
@@ -94,13 +98,11 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
 
     def validate(self, data):
         try:
-            # Decodificamos el ID del usuario recibido por el cliente
             uid = urlsafe_base64_decode(data['uid']).decode()
             user = User.objects.get(pk=uid)
         except (TypeError, ValueError, OverflowError, User.DoesNotExist):
             raise serializers.ValidationError({"uid": "El enlace de recuperación es inválido."})
 
-        # Validamos que el token criptográfico de Django sea legítimo para este usuario
         if not default_token_generator.check_token(user, data['token']):
             raise serializers.ValidationError({"token": "El token ha expirado o es inválido."})
         
