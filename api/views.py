@@ -1,5 +1,5 @@
 import os
-import resend
+import requests
 from rest_framework.decorators import api_view, permission_classes, authentication_classes
 from rest_framework.authentication import SessionAuthentication
 from rest_framework_simplejwt.authentication import JWTAuthentication
@@ -19,9 +19,6 @@ from .serializers import (
     PasswordResetRequestSerializer,
     PasswordResetConfirmSerializer
 )
-
-# Inicializamos Resend con la variable de entorno configurada en Render
-resend.api_key = os.environ.get("RESEND_API_KEY")
 
 
 @api_view(['GET'])
@@ -50,7 +47,7 @@ class RegisterView(generics.CreateAPIView):
 @permission_classes([AllowAny])
 def password_reset_request_view(request):
     """
-    Recibe el email, genera el token y envía el correo corporativo de Evora usando la API HTTP de Resend.
+    Recibe el email, genera el token y envía el correo corporativo de Evora usando la API HTTP de Brevo.
     """
     serializer = PasswordResetRequestSerializer(data=request.data)
     if serializer.is_valid():
@@ -61,7 +58,7 @@ def password_reset_request_view(request):
                 token = default_token_generator.make_token(user)
                 uid = urlsafe_base64_encode(str(user.pk).encode())
                 
-                # Enlace hacia tu frontend (puedes cambiarlo por tu URL de Vercel cuando despliegues)
+                # Enlace hacia tu frontend (ajústalo a tu dominio de producción si es necesario)
                 reset_link = f"http://localhost:5173/reset-password?uid={uid}&token={token}"
                 
                 html_message = f"""
@@ -103,19 +100,38 @@ def password_reset_request_view(request):
                 </html>
                 """
                 
-                # Parámetros para el envío mediante la API de Resend
-                params = {
-                    "from": "Evora <onboarding@resend.dev>",
-                    "to": [user.email],
+                # Configuración de credenciales de Brevo desde variables de entorno
+                brevo_api_key = os.environ.get('BREVO_API_KEY')
+                sender_email = os.environ.get('BREVO_SENDER_EMAIL')
+                
+                url = "https://api.brevo.com/v3/smtp/email"
+                headers = {
+                    "accept": "application/json",
+                    "api-key": brevo_api_key,
+                    "content-type": "application/json"
+                }
+                payload = {
+                    "sender": {
+                        "name": "Evora",
+                        "email": sender_email
+                    },
+                    "to": [
+                        {
+                            "email": user.email
+                        }
+                    ],
                     "subject": "Restablece tu contraseña - Evora",
-                    "html": html_message,
+                    "htmlContent": html_message
                 }
                 
-                response = resend.Emails.send(params)
-                print("Correo enviado exitosamente con Resend:", response)
+                response = requests.post(url, json=payload, headers=headers)
+                if response.status_code == 201:
+                    print("Correo enviado exitosamente con Brevo a:", user.email)
+                else:
+                    print("Error de Brevo:", response.text)
                 
         except Exception as e:
-            print(f"Error al enviar correo de recuperación con Resend: {e}")
+            print(f"Error al enviar correo de recuperación con Brevo: {e}")
             
         return Response({"detail": "Si el correo existe, se han enviado las instrucciones."}, status=200)
     return Response(serializer.errors, status=400)
