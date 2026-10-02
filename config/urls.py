@@ -30,7 +30,10 @@ urlpatterns = [
     path('api/register/', RegisterView.as_view(), name='register'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     
-    # Endpoints de Recuperación de Contraseña (Lógica interna / local)
+    # Endpoints de Djoser (Incluye /api/auth/users/reset_password_confirm/)
+    path('api/auth/', include('djoser.urls')),
+    
+    # Endpoints de Recuperación de Contraseña (Lógica personalizada previa)
     path('api/password-reset/', password_reset_request_view, name='password_reset_request'),
     path('api/password-reset-confirm/', password_reset_confirm_view, name='password_reset_confirm'),
     
