@@ -1,5 +1,24 @@
 from django.db import models
 from django.contrib.auth.models import User
+from django.db.models.signals import post_save
+from django.dispatch import receiver
+
+# US-12: Perfil de usuario para almacenar configuraciones personalizadas como el límite diario
+class PerfilUsuario(models.Model):
+    usuario = models.OneToOneField(User, on_delete=models.CASCADE, related_name='perfil')
+    limite_diario_horas = models.DecimalField(max_digits=5, decimal_places=2, default=6.00)
+
+    def __str__(self):
+        return f"Perfil de {self.usuario.username} - Límite: {self.limite_diario_horas}h"
+
+# Crear o guardar automáticamente el perfil al crear un usuario
+@receiver(post_save, sender=User)
+def crear_o_guardar_perfil_usuario(sender, instance, created, **kwargs):
+    if created:
+        PerfilUsuario.objects.create(usuario=instance)
+    else:
+        if hasattr(instance, 'perfil'):
+            instance.perfil.save()
 
 # Modelos base con aislamiento por organizador
 

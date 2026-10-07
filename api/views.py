@@ -1,6 +1,9 @@
 import os
 import requests
-from rest_framework.decorators import api_view, permission_classes, authentication_classes
+from decimal import Decimal
+from django.db import transaction
+from django.db.models import Sum
+from rest_framework.decorators import api_view, permission_classes, authentication_classes, action
 from rest_framework.authentication import SessionAuthentication
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.response import Response
@@ -11,13 +14,14 @@ from django.contrib.auth.tokens import default_token_generator
 from django.utils import timezone
 from django.utils.http import urlsafe_base64_encode
 from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes
-from .models import Evento, GestionLogistica
+from .models import Evento, GestionLogistica, PerfilUsuario
 from .serializers import (
     GestionLogisticaSerializer, 
     EventoSerializer, 
     RegisterSerializer,
     PasswordResetRequestSerializer,
-    PasswordResetConfirmSerializer
+    PasswordResetConfirmSerializer,
+    PerfilUsuarioSerializer
 )
 
 
@@ -160,13 +164,44 @@ def password_reset_confirm_view(request):
 @permission_classes([IsAuthenticated])
 def profile_view(request):
     user = request.user
+    perfil, _ = PerfilUsuario.objects.get_or_create(usuario=user)
     return Response({
         "id": user.id,
         "username": user.username,
         "email": user.email,
         "first_name": user.first_name,
-        "last_name": user.last_name
+        "last_name": user.last_name,
+        "limite_diario_horas": perfil.limite_diario_horas
     }, status=200)
+
+
+# ==========================================
+# US-12: Endpoints para límite diario por usuario
+# ==========================================
+@api_view(['GET', 'PUT', 'PATCH'])
+@authentication_classes([SessionAuthentication, JWTAuthentication])
+@permission_classes([IsAuthenticated])
+def limite_diario_view(request):
+    """
+    US-12: Permite consultar (GET) y actualizar (PUT/PATCH) el límite máximo
+    de horas de gestión diarias del usuario autenticado (por defecto 6.0 horas).
+    """
+    perfil, _ = PerfilUsuario.objects.get_or_create(usuario=request.user)
+
+    if request.method == 'GET':
+        serializer = PerfilUsuarioSerializer(perfil)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    elif request.method in ['PUT', 'PATCH']:
+        partial = (request.method == 'PATCH')
+        serializer = PerfilUsuarioSerializer(perfil, data=request.data, partial=partial)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({
+                "mensaje": "Límite diario de gestión actualizado correctamente.",
+                "limite_diario_horas": serializer.data['limite_diario_horas']
+            }, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 @extend_schema(
@@ -232,6 +267,10 @@ class EventoViewSet(viewsets.ModelViewSet):
 
 
 class GestionLogisticaViewSet(viewsets.ModelViewSet):
+    """
+    US-06 & US-07: Endpoints de reprogramación (PUT/PATCH) con detección automática
+    de sobrecarga de horas según el límite diario del usuario.
+    """
     serializer_class = GestionLogisticaSerializer
     permission_classes = [IsAuthenticated]
     authentication_classes = [SessionAuthentication, JWTAuthentication]
@@ -247,3 +286,105 @@ class GestionLogisticaViewSet(viewsets.ModelViewSet):
             from rest_framework.exceptions import PermissionDenied
             raise PermissionDenied("No puedes agregar gestiones a un evento que no te pertenece.")
         serializer.save()
+
+    def update(self, request, *args, **kwargs):
+        """
+        US-06 & US-07: Permite reprogramar la fecha (plazo) u otros campos.
+        Antes de guardar, valida si acumula más horas que el límite diario del usuario.
+        """
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+
+        nuevo_plazo = serializer.validated_data.get('plazo', instance.plazo)
+        nuevas_horas = serializer.validated_data.get('horas_estimadas', instance.horas_estimadas)
+
+        # US-07: Validación de límite de horas diarias en el servidor
+        perfil, _ = PerfilUsuario.objects.get_or_create(usuario=request.user)
+        limite_diario = perfil.limite_diario_horas
+
+        # Calcular horas ocupadas ese día excluyendo la subtarea actual
+        horas_acumuladas = GestionLogistica.objects.filter(
+            evento__organizador=request.user,
+            plazo=nuevo_plazo
+        ).exclude(pk=instance.pk).aggregate(total=Sum('horas_estimadas'))['total'] or Decimal('0.0')
+
+        total_proyectado = horas_acumuladas + Decimal(str(nuevas_horas))
+
+        # Si supera el límite diario y la petición no incluye confirmación explícita
+        force_save = request.data.get('force', False)
+        if total_proyectado > limite_diario and not force_save:
+            exceso = total_proyectado - limite_diario
+            horas_disponibles = max(Decimal('0.0'), limite_diario - horas_acumuladas)
+
+            return Response({
+                "conflicto": True,
+                "mensaje": f"La reprogramación excede tu límite diario de horas ({limite_diario}h).",
+                "detalles": {
+                    "fecha_objetivo": str(nuevo_plazo),
+                    "limite_diario": float(limite_diario),
+                    "horas_acumuladas_previas": float(horas_acumuladas),
+                    "horas_tarea": float(nuevas_horas),
+                    "total_horas_proyectado": float(total_proyectado),
+                    "exceso_horas": float(exceso),
+                    "horas_disponibles_en_fecha": float(horas_disponibles)
+                },
+                "opciones_resolucion": [
+                    {
+                        "codigo": "REDUCIR_TIEMPO",
+                        "descripcion": f"Reducir las horas de esta tarea a {horas_disponibles}h para encajar en el día.",
+                        "tiempo_sugerido": float(horas_disponibles)
+                    },
+                    {
+                        "codigo": "MOVER_FECHA",
+                        "descripcion": "Mover la tarea a un día disponible."
+                    }
+                ]
+            }, status=status.HTTP_409_CONFLICT)
+
+        self.perform_update(serializer)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    # US-08: Servicio para resolución atómica de conflictos
+    @action(detail=True, methods=['post'], url_path='resolver-conflicto')
+    @transaction.atomic
+    def resolver_conflicto(self, request, pk=None):
+        """
+        US-08: Resuelve un conflicto de forma atómica.
+        Payload esperado:
+        - opcion: "MOVER_FECHA" | "REDUCIR_TIEMPO"
+        - nueva_fecha: "YYYY-MM-DD" (si opcion es MOVER_FECHA)
+        - nuevas_horas: N (si opcion es REDUCIR_TIEMPO)
+        """
+        gestion = self.get_object()
+        opcion = request.data.get('opcion')
+
+        if opcion == 'MOVER_FECHA':
+            nueva_fecha = request.data.get('nueva_fecha')
+            if not nueva_fecha:
+                return Response({"error": "Debe proporcionar 'nueva_fecha' para mover la tarea."}, status=status.HTTP_400_BAD_REQUEST)
+            
+            gestion.plazo = nueva_fecha
+            gestion.save()
+            return Response({
+                "mensaje": "Conflicto resuelto: Fecha reprogramada con éxito.",
+                "gestion": GestionLogisticaSerializer(gestion).data
+            }, status=status.HTTP_200_OK)
+
+        elif opcion == 'REDUCIR_TIEMPO':
+            nuevas_horas = request.data.get('nuevas_horas')
+            if nuevas_horas is None or Decimal(str(nuevas_horas)) <= 0:
+                return Response({"error": "Debe proporcionar 'nuevas_horas' mayores a 0."}, status=status.HTTP_400_BAD_REQUEST)
+            
+            gestion.horas_estimadas = Decimal(str(nuevas_horas))
+            gestion.save()
+            return Response({
+                "mensaje": "Conflicto resuelto: Horas reducidas con éxito.",
+                "gestion": GestionLogisticaSerializer(gestion).data
+            }, status=status.HTTP_200_OK)
+
+        else:
+            return Response({
+                "error": "Opción no válida. Use 'MOVER_FECHA' o 'REDUCIR_TIEMPO'."
+            }, status=status.HTTP_400_BAD_REQUEST)
