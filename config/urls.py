@@ -10,7 +10,8 @@ from api.views import (
     EventoViewSet, 
     GestionLogisticaViewSet,
     password_reset_request_view,
-    password_reset_confirm_view
+    password_reset_confirm_view,
+    limite_diario_view
 )
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from rest_framework_simplejwt.views import (
@@ -39,6 +40,9 @@ urlpatterns = [
     
     # Nuevo Endpoint de Perfil de Usuario
     path('api/users/profile/', profile_view, name='user-profile'),
+
+    # US-12: Configuración del Límite Diario de Gestión
+    path('api/limite-diario/', limite_diario_view, name='limite-diario'),
     
     # Rutas existentes y nuevo endpoint de agrupación
     path('api/health/', health, name='health'), 

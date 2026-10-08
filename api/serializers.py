@@ -2,7 +2,19 @@ from django.contrib.auth.models import User
 from django.contrib.auth.tokens import default_token_generator
 from django.utils.http import urlsafe_base64_decode
 from rest_framework import serializers
-from .models import Evento, GestionLogistica
+from .models import Evento, GestionLogistica, PerfilUsuario
+
+class PerfilUsuarioSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PerfilUsuario
+        fields = ['limite_diario_horas']
+
+    def validate_limite_diario_horas(self, value):
+        if value <= 0:
+            raise serializers.ValidationError("El límite diario de horas debe ser mayor a 0.")
+        if value > 24:
+            raise serializers.ValidationError("El límite diario de horas no puede superar las 24 horas.")
+        return value
 
 class GestionLogisticaSerializer(serializers.ModelSerializer):
     # 'required=False' y 'allow_null=True' permiten que las gestiones anidadas 
