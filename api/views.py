@@ -297,6 +297,13 @@ class GestionLogisticaViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(instance, data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
 
+        # Si el cambio no afecta la carga diaria (p. ej. marcar 'completada'),
+        # omitimos la validación para no bloquear la actualización con error 409.
+        campos_que_cambian_la_carga = {'plazo', 'horas_estimadas'}
+        if not campos_que_cambian_la_carga.intersection(request.data.keys()):
+            self.perform_update(serializer)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
         nuevo_plazo = serializer.validated_data.get('plazo', instance.plazo)
         nuevas_horas_raw = serializer.validated_data.get('horas_estimadas', instance.horas_estimadas)
         nuevas_horas = Decimal(str(nuevas_horas_raw))
