@@ -7,13 +7,13 @@ from rest_framework.decorators import api_view, permission_classes, authenticati
 from rest_framework.authentication import SessionAuthentication
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.response import Response
-from rest_framework import viewsets, generics, status
+from rest_framework import viewsets, generics, status, serializers
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.contrib.auth.models import User
 from django.contrib.auth.tokens import default_token_generator
 from django.utils import timezone
 from django.utils.http import urlsafe_base64_encode
-from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes
+from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes, inline_serializer
 from .models import Evento, GestionLogistica, PerfilUsuario
 from .serializers import (
     GestionLogisticaSerializer, 
@@ -347,6 +347,16 @@ class GestionLogisticaViewSet(viewsets.ModelViewSet):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     # US-08: Servicio para resolución atómica de conflictos
+    @extend_schema(
+        request=inline_serializer(
+            name='ResolverConflictoPayload',
+            fields={
+                'opcion': serializers.CharField(default='REDUCIR_TIEMPO'),
+                'nueva_fecha': serializers.DateField(required=False),
+                'nuevas_horas': serializers.FloatField(default=2.5, required=False)
+            }
+        )
+    )
     @action(detail=True, methods=['post'], url_path='resolver-conflicto')
     @transaction.atomic
     def resolver_conflicto(self, request, pk=None):

@@ -85,16 +85,13 @@ class RegisterSerializer(serializers.ModelSerializer):
         
         username = email
 
-        partes_nombre = nombre_completo.split(' ', 1)
-        first_name = partes_nombre[0] if partes_nombre else ''
-        last_name = partes_nombre[1] if len(partes_nombre) > 1 else ''
-
+        # Guarda el nombre completo entero en first_name sin dividirlo
         user = User.objects.create_user(
             username=username,
             email=email,
             password=validated_data['password'],
-            first_name=first_name,
-            last_name=last_name
+            first_name=nombre_completo,
+            last_name=''
         )
         return user
 
