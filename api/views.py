@@ -298,19 +298,21 @@ class GestionLogisticaViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
 
         nuevo_plazo = serializer.validated_data.get('plazo', instance.plazo)
-        nuevas_horas = serializer.validated_data.get('horas_estimadas', instance.horas_estimadas)
+        nuevas_horas_raw = serializer.validated_data.get('horas_estimadas', instance.horas_estimadas)
+        nuevas_horas = Decimal(str(nuevas_horas_raw))
 
         # US-07: Validación de límite de horas diarias en el servidor
         perfil, _ = PerfilUsuario.objects.get_or_create(usuario=request.user)
-        limite_diario = perfil.limite_diario_horas
+        limite_diario = Decimal(str(perfil.limite_diario_horas))
 
-        # Calcular horas ocupadas ese día excluyendo la subtarea actual
-        horas_acumuladas = GestionLogistica.objects.filter(
+        # Calcular horas ocupadas ese día excluyendo la gestión actual
+        horas_acumuladas_query = GestionLogistica.objects.filter(
             evento__organizador=request.user,
             plazo=nuevo_plazo
-        ).exclude(pk=instance.pk).aggregate(total=Sum('horas_estimadas'))['total'] or Decimal('0.0')
+        ).exclude(pk=instance.pk).aggregate(total=Sum('horas_estimadas'))['total']
 
-        total_proyectado = horas_acumuladas + Decimal(str(nuevas_horas))
+        horas_acumuladas = Decimal(str(horas_acumuladas_query or '0.0'))
+        total_proyectado = horas_acumuladas + nuevas_horas
 
         # Si supera el límite diario y la petición no incluye confirmación explícita
         force_save = request.data.get('force', False)
