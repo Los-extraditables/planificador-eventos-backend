@@ -16,52 +16,111 @@ class PerfilUsuarioSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("El límite diario de horas no puede superar las 24 horas.")
         return value
 
+
 class GestionLogisticaSerializer(serializers.ModelSerializer):
-    # 'required=False' y 'allow_null=True' permiten que las gestiones anidadas 
-    # se validen correctamente antes de que el evento exista en la base de datos.
     evento = serializers.PrimaryKeyRelatedField(
-        queryset=Evento.objects.all(), 
-        required=False, 
+        queryset=Evento.objects.all(),
+        required=False,
         allow_null=True
     )
 
     class Meta:
         model = GestionLogistica
-        fields = ['id', 'evento', 'descripcion', 'plazo', 'horas_estimadas', 'completada']
-    
+        fields = [
+            'id',
+            'evento',
+            'descripcion',
+            'plazo',
+            'horas_estimadas',
+            'completada',
+            'estado',
+            'nota_pospuesto',
+        ]
+
     def validate_horas_estimadas(self, value):
         if value <= 0:
-            raise serializers.ValidationError("Las horas estimadas deben ser mayores que cero.")
+            raise serializers.ValidationError(
+                "Las horas estimadas deben ser mayores que cero."
+            )
         return value
 
+    def validate_estado(self, value):
+        estados_permitidos = ['pendiente', 'hecho', 'pospuesto']
+        if value not in estados_permitidos:
+            raise serializers.ValidationError(
+                "El estado debe ser 'pendiente', 'hecho' o 'pospuesto'."
+            )
+        return value
+
+    def validate(self, data):
+        estado = data.get(
+            'estado',
+            getattr(self.instance, 'estado', 'pendiente')
+        )
+        nota = data.get(
+            'nota_pospuesto',
+            getattr(self.instance, 'nota_pospuesto', '')
+        )
+
+        if estado != 'pospuesto' and nota:
+            raise serializers.ValidationError({
+                'nota_pospuesto':
+                    "La nota explicativa solo se permite cuando el estado es 'pospuesto'."
+            })
+
+        return data
+
+
+
 class EventoSerializer(serializers.ModelSerializer):
-    gestiones = GestionLogisticaSerializer(many=True, required=False, allow_empty=True)
+    gestiones = GestionLogisticaSerializer(
+        many=True,
+        required=False,
+        allow_empty=True
+    )
 
     class Meta:
         model = Evento
-        fields = ['id', 'nombre', 'tipo', 'fecha', 'limite_diario_horas', 'creado_en', 'organizador', 'gestiones']
+        fields = [
+            'id',
+            'nombre',
+            'tipo',
+            'fecha',
+            'limite_diario_horas',
+            'creado_en',
+            'organizador',
+            'gestiones',
+        ]
         read_only_fields = ['organizador']
-    
+
     def validate_nombre(self, value):
         if not value.strip():
-            raise serializers.ValidationError("El nombre del evento no puede estar vacío.")
+            raise serializers.ValidationError(
+                "El nombre del evento no puede estar vacío."
+            )
         return value
-    
+
     def validate_tipo(self, value):
         if not value.strip():
-            raise serializers.ValidationError("El tipo de evento no puede estar vacío.")
+            raise serializers.ValidationError(
+                "El tipo de evento no puede estar vacío."
+            )
         return value
-    
+
     def create(self, validated_data):
         gestiones_data = validated_data.pop('gestiones', [])
         evento = Evento.objects.create(**validated_data)
-        
+
         for gestion_data in gestiones_data:
-            # Evitamos conflictos si el JSON trae 'evento' explícitamente
             gestion_data.pop('evento', None)
-            
-            GestionLogistica.objects.create(evento=evento, **gestion_data)
+            GestionLogistica.objects.create(
+                evento=evento,
+                **gestion_data
+            )
+
         return evento
+
+
 
 
 class RegisterSerializer(serializers.ModelSerializer):

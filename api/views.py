@@ -407,3 +407,66 @@ class GestionLogisticaViewSet(viewsets.ModelViewSet):
             return Response({
                 "error": "Opción no válida. Use 'MOVER_FECHA' o 'REDUCIR_TIEMPO'."
             }, status=status.HTTP_400_BAD_REQUEST)
+
+    
+@api_view(['PATCH', 'PUT'])
+@authentication_classes([SessionAuthentication, JWTAuthentication])
+@permission_classes([IsAuthenticated])
+def actualizar_estado_subtarea(request, id):
+    try:
+        subtarea = GestionLogistica.objects.get(
+            pk=id,
+            evento__organizador=request.user
+        )
+    except GestionLogistica.DoesNotExist:
+        return Response(
+            {'error': 'La subtarea no existe.'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+    estado = request.data.get('estado')
+
+    if estado not in ['hecho', 'pospuesto']:
+        return Response(
+            {
+                'error': "El estado debe ser 'hecho' o 'pospuesto'."
+            },
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    nota = request.data.get('nota_pospuesto', '')
+
+    if nota is None:
+        nota = ''
+
+    if not isinstance(nota, str):
+        return Response(
+            {'error': 'La nota debe ser un texto.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    if estado == 'pospuesto':
+        subtarea.nota_pospuesto = nota
+    else:
+        subtarea.nota_pospuesto = ''
+
+    subtarea.estado = estado
+    subtarea.completada = (estado == 'hecho')
+
+    try:
+        subtarea.save()
+    except Exception:
+        return Response(
+            {'error': 'No fue posible actualizar la subtarea.'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+    return Response(
+        {
+            'id': subtarea.id,
+            'estado': subtarea.estado,
+            'nota_pospuesto': subtarea.nota_pospuesto,
+            'completada': subtarea.completada,
+        },
+        status=status.HTTP_200_OK
+    )

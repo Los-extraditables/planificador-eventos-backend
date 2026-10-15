@@ -3,15 +3,16 @@ from django.contrib import admin
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from api.views import (
-    health, 
-    hoy_view, 
-    profile_view, 
-    RegisterView, 
-    EventoViewSet, 
+    health,
+    hoy_view,
+    profile_view,
+    RegisterView,
+    EventoViewSet,
     GestionLogisticaViewSet,
     password_reset_request_view,
     password_reset_confirm_view,
-    limite_diario_view
+    limite_diario_view,
+    actualizar_estado_subtarea,
 )
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from rest_framework_simplejwt.views import (
@@ -41,11 +42,18 @@ urlpatterns = [
     # Nuevo Endpoint de Perfil de Usuario
     path('api/users/profile/', profile_view, name='user-profile'),
 
-    # US-12: Configuración del Límite Diario de Gestión
+   # US-12: Configuración del Límite Diario de Gestión
     path('api/limite-diario/', limite_diario_view, name='limite-diario'),
-    
-    # Rutas existentes y nuevo endpoint de agrupación
-    path('api/health/', health, name='health'), 
+
+    # Actualizar estado de una subtarea
+    path(
+    'api/subtareas/<int:id>/estado/',
+    actualizar_estado_subtarea,
+    name='actualizar-estado-subtarea'
+),
+
+    # Rutas existentes
+    path('api/health/', health, name='health'),
     path('api/hoy/', hoy_view, name='hoy-view'),
     path('api/', include(router.urls)),
     
