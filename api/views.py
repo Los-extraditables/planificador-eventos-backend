@@ -265,6 +265,50 @@ class EventoViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(organizador=self.request.user)
 
+    @extend_schema(
+        summary="Consultar progreso de un evento",
+        description=(
+            "Retorna el total de gestiones, las gestiones ejecutadas "
+            "y el porcentaje de progreso del evento."
+        ),
+        responses={
+            200: inline_serializer(
+                name="ProgresoEventoResponse",
+                fields={
+                    "evento_id": serializers.IntegerField(),
+                    "total_gestiones": serializers.IntegerField(),
+                    "gestiones_ejecutadas": serializers.IntegerField(),
+                    "progreso_porcentaje": serializers.FloatField(),
+                    "progreso": serializers.CharField(),
+                },
+            ),
+            404: OpenApiTypes.OBJECT,
+        },
+    )
+    @action(detail=True, methods=["get"], url_path="progreso")
+    def progreso(self, request, pk=None):
+        evento = self.get_object()
+
+        total = GestionLogistica.objects.filter(
+            evento=evento
+        ).count()
+
+        ejecutadas = GestionLogistica.objects.filter(
+            evento=evento,
+            completada=True
+        ).count()
+
+        porcentaje = round((ejecutadas / total) * 100, 2) if total else 0.0
+
+        return Response({
+            "evento_id": evento.id,
+            "total_gestiones": total,
+            "gestiones_ejecutadas": ejecutadas,
+            "progreso_porcentaje": porcentaje,
+            "progreso": f"{ejecutadas}/{total}",
+        }, status=status.HTTP_200_OK)
+
+
 
 class GestionLogisticaViewSet(viewsets.ModelViewSet):
     """
