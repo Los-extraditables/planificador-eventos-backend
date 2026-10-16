@@ -3,34 +3,58 @@ from django.contrib.auth.models import User
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
-# US-12: Perfil de usuario para almacenar configuraciones personalizadas como el límite diario
+
+# US-12: Perfil de usuario para almacenar configuraciones personalizadas
+# y datos adicionales del usuario.
 class PerfilUsuario(models.Model):
-    usuario = models.OneToOneField(User, on_delete=models.CASCADE, related_name='perfil')
-    limite_diario_horas = models.DecimalField(max_digits=5, decimal_places=2, default=6.00)
+    usuario = models.OneToOneField(
+        User,
+        on_delete=models.CASCADE,
+        related_name='perfil'
+    )
+    nombre_completo = models.CharField(max_length=150, blank=True, default='')
+    limite_diario_horas = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=6.00
+    )
 
     def __str__(self):
-        return f"Perfil de {self.usuario.username} - Límite: {self.limite_diario_horas}h"
+        return f"Perfil de {self.usuario.username} {self.nombre_completo}"
 
-# Crear o guardar automáticamente el perfil al crear un usuario
+
+# Crear automáticamente el perfil al crear un usuario.
 @receiver(post_save, sender=User)
 def crear_o_guardar_perfil_usuario(sender, instance, created, **kwargs):
     if created:
-        PerfilUsuario.objects.create(usuario=instance)
+        PerfilUsuario.objects.create(
+            usuario=instance,
+            nombre_completo=f"{instance.first_name} {instance.last_name}".strip()
+        )
     else:
         if hasattr(instance, 'perfil'):
             instance.perfil.save()
 
-# Modelos base con aislamiento por organizador
 
+# Modelos base con aislamiento por organizador.
 class Evento(models.Model):
     nombre = models.CharField(max_length=200)
     tipo = models.CharField(max_length=100)
     fecha = models.DateField()
-    limite_diario_horas = models.DecimalField(max_digits=5, decimal_places=2, default=6.0) # Campo agregado según la interfaz de creación
+    limite_diario_horas = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=6.0
+    )
     creado_en = models.DateTimeField(auto_now_add=True)
-    
-    # Campo agregado para vincular el evento estrictamente al usuario logueado
-    organizador = models.ForeignKey(User, on_delete=models.CASCADE, related_name='eventos', null=True, blank=True)
+
+    organizador = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='eventos',
+        null=True,
+        blank=True
+    )
 
     def __str__(self):
         return f"{self.nombre} ({self.tipo})"
@@ -61,4 +85,4 @@ class GestionLogistica(models.Model):
     nota_pospuesto = models.TextField(blank=True, default='')
 
     def __str__(self):
-        return f"{self.descripcion} - Evento: {self.evento.nombre}"
+        return f"{self.descripcion} Evento: {self.evento.nombre}"
