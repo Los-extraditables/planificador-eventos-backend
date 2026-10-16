@@ -352,49 +352,7 @@ class GestionLogisticaViewSet(viewsets.ModelViewSet):
         nuevas_horas_raw = serializer.validated_data.get('horas_estimadas', instance.horas_estimadas)
         nuevas_horas = Decimal(str(nuevas_horas_raw))
 
-        # US-07: Validación de límite de horas diarias en el servidor
-        perfil, _ = PerfilUsuario.objects.get_or_create(usuario=request.user)
-        limite_diario = Decimal(str(perfil.limite_diario_horas))
-
-        # Calcular horas ocupadas ese día excluyendo la gestión actual
-        horas_acumuladas_query = GestionLogistica.objects.filter(
-            evento__organizador=request.user,
-            plazo=nuevo_plazo
-        ).exclude(pk=instance.pk).aggregate(total=Sum('horas_estimadas'))['total']
-
-        horas_acumuladas = Decimal(str(horas_acumuladas_query or '0.0'))
-        total_proyectado = horas_acumuladas + nuevas_horas
-
-        # Si supera el límite diario y la petición no incluye confirmación explícita
-        force_save = request.data.get('force', False)
-        if total_proyectado > limite_diario and not force_save:
-            exceso = total_proyectado - limite_diario
-            horas_disponibles = max(Decimal('0.0'), limite_diario - horas_acumuladas)
-
-            return Response({
-                "conflicto": True,
-                "mensaje": f"La reprogramación excede tu límite diario de horas ({limite_diario}h).",
-                "detalles": {
-                    "fecha_objetivo": str(nuevo_plazo),
-                    "limite_diario": float(limite_diario),
-                    "horas_acumuladas_previas": float(horas_acumuladas),
-                    "horas_tarea": float(nuevas_horas),
-                    "total_horas_proyectado": float(total_proyectado),
-                    "exceso_horas": float(exceso),
-                    "horas_disponibles_en_fecha": float(horas_disponibles)
-                },
-                "opciones_resolucion": [
-                    {
-                        "codigo": "REDUCIR_TIEMPO",
-                        "descripcion": f"Reducir las horas de esta tarea a {horas_disponibles}h para encajar en el día.",
-                        "tiempo_sugerido": float(horas_disponibles)
-                    },
-                    {
-                        "codigo": "MOVER_FECHA",
-                        "descripcion": "Mover la tarea a un día disponible."
-                    }
-                ]
-            }, status=status.HTTP_409_CONFLICT)
+        
 
         self.perform_update(serializer)
         return Response(serializer.data, status=status.HTTP_200_OK)
