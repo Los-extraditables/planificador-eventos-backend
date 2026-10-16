@@ -1,4 +1,3 @@
-
 from django.db import models
 from django.contrib.auth.models import User
 from django.db.models.signals import post_save
@@ -21,7 +20,7 @@ class PerfilUsuario(models.Model):
     )
 
     def __str__(self):
-        return f"Perfil de {self.usuario.username} - {self.nombre_completo}"
+        return f"Perfil de {self.usuario.username} {self.nombre_completo}"
 
 
 # Crear automáticamente el perfil al crear un usuario.
@@ -62,6 +61,12 @@ class Evento(models.Model):
 
 
 class GestionLogistica(models.Model):
+    ESTADO_CHOICES = [
+        ('pendiente', 'Pendiente'),
+        ('hecho', 'Hecho'),
+        ('pospuesto', 'Pospuesto'),
+    ]
+
     evento = models.ForeignKey(
         Evento,
         related_name='gestiones',
@@ -72,5 +77,12 @@ class GestionLogistica(models.Model):
     horas_estimadas = models.DecimalField(max_digits=5, decimal_places=2)
     completada = models.BooleanField(default=False)
 
+    estado = models.CharField(
+        max_length=20,
+        choices=ESTADO_CHOICES,
+        default='pendiente'
+    )
+    nota_pospuesto = models.TextField(blank=True, default='')
+
     def __str__(self):
-        return f"{self.descripcion} - Evento: {self.evento.nombre}"
+        return f"{self.descripcion} Evento: {self.evento.nombre}"
