@@ -65,34 +65,65 @@ class EventoSerializer(serializers.ModelSerializer):
 
 
 class RegisterSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(write_only=True, min_length=6)
-    password_confirmation = serializers.CharField(write_only=True)
-    nombre_completo = serializers.CharField(write_only=True, required=False)
+    nombre_completo = serializers.CharField(write_only=True, required=True)
+    password_confirmation = serializers.CharField(write_only=True, required=True)
 
     class Meta:
         model = User
-        fields = ['nombre_completo', 'email', 'password', 'password_confirmation']
+        fields = [
+            'nombre_completo',
+            'email',
+            'password',
+            'password_confirmation'
+        ]
+        extra_kwargs = {
+            'password': {'write_only': True}
+        }
 
     def validate(self, data):
+        nombre_completo = data.get('nombre_completo', '').strip()
+
+        if not nombre_completo:
+            raise serializers.ValidationError({
+                'nombre_completo': 'El nombre completo es obligatorio.'
+            })
+
         if data['password'] != data['password_confirmation']:
-            raise serializers.ValidationError({"password_confirmation": "Las contraseñas no coinciden."})
+            raise serializers.ValidationError({
+                'password': 'Las contraseñas no coinciden.'
+            })
+
+        # No es necesario guardar nombre_completo de nuevo en data si ya mutaste el diccionario original,
+        # pero para mayor seguridad lo reasignamos limpio.
+        data['nombre_completo'] = nombre_completo
         return data
 
     def create(self, validated_data):
+        # 1. Extraemos y limpiamos los campos custom
+        nombre_completo = validated_data.pop('nombre_completo')
         validated_data.pop('password_confirmation')
-        nombre_completo = validated_data.pop('nombre_completo', '')
-        email = validated_data.get('email')
-        
-        username = email
 
-        # Guarda el nombre completo entero en first_name sin dividirlo
+        # 2. Dividimos el nombre completo de forma segura (ignora espacios múltiples)
+        partes = nombre_completo.split(maxsplit=1)
+        first_name = partes[0] if len(partes) > 0 else ''
+        last_name = partes[1] if len(partes) > 1 else ''
+
+        email = validated_data['email']
+
+        # 3. Creamos el usuario (Esto disparará el signal automáticamente)
         user = User.objects.create_user(
-            username=username,
+            username=email,
             email=email,
             password=validated_data['password'],
-            first_name=nombre_completo,
-            last_name=''
+            first_name=first_name,
+            last_name=last_name
         )
+
+        # ¡ELIMINAMOS la lógica del perfil aquí!
+        # El signal 'crear_o_guardar_perfil_usuario' en models.py ya se ejecutó 
+        # al crear el usuario arriba y construyó el 'nombre_completo' del perfil
+        # juntando first_name y last_name.
+
         return user
 
 
