@@ -13,6 +13,8 @@ from api.views import (
     password_reset_confirm_view,
     limite_diario_view,
     actualizar_estado_subtarea,
+    profile_view,
+    tour_status_view,
 )
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from rest_framework_simplejwt.views import (
@@ -38,6 +40,10 @@ urlpatterns = [
     # Endpoints de Recuperación de Contraseña (Lógica personalizada previa)
     path('api/password-reset/', password_reset_request_view, name='password_reset_request'),
     path('api/password-reset-confirm/', password_reset_confirm_view, name='password_reset_confirm'),
+
+    # Endpoints para el tour a los usuario nuevos
+    path('api/users/profile/', profile_view, name='user-profile'),
+    path('api/usuarios/me/tour/', tour_status_view, name='tour-status'),
     
     # Nuevo Endpoint de Perfil de Usuario
     path('api/users/profile/', profile_view, name='user-profile'),

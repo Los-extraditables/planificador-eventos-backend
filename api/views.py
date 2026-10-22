@@ -171,8 +171,38 @@ def profile_view(request):
         "email": user.email,
         "first_name": user.first_name,
         "last_name": user.last_name,
-        "limite_diario_horas": perfil.limite_diario_horas
+        "limite_diario_horas": perfil.limite_diario_horas,
+        "tour_visto": perfil.tour_visto,
+        "tour_visto_en": perfil.tour_visto_en
     }, status=200)
+
+
+@api_view(['PATCH'])
+@authentication_classes([SessionAuthentication, JWTAuthentication])
+@permission_classes([IsAuthenticated])
+def tour_status_view(request):
+    perfil, _ = PerfilUsuario.objects.get_or_create(usuario=request.user)
+    
+    tour_visto = request.data.get('tour_visto')
+    if tour_visto is None:
+        return Response(
+            {"tour_visto": "Este campo es requerido."},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    nuevo_estado = bool(tour_visto)
+    perfil.tour_visto = nuevo_estado
+    
+    if nuevo_estado and perfil.tour_visto_en is None:
+        perfil.tour_visto_en = timezone.now()
+        
+    perfil.save()
+
+    return Response({
+        "mensaje": "Estado del tour actualizado correctamente.",
+        "tour_visto": perfil.tour_visto,
+        "tour_visto_en": perfil.tour_visto_en
+    }, status=status.HTTP_200_OK)
 
 
 # ==========================================

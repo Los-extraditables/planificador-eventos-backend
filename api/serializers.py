@@ -7,7 +7,8 @@ from .models import Evento, GestionLogistica, PerfilUsuario
 class PerfilUsuarioSerializer(serializers.ModelSerializer):
     class Meta:
         model = PerfilUsuario
-        fields = ['limite_diario_horas']
+        fields = ['limite_diario_horas', 'tour_visto', 'tour_visto_en']
+        read_only_fields = ['tour_visto_en']
 
     def validate_limite_diario_horas(self, value):
         if value <= 0:

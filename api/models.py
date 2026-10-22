@@ -4,8 +4,8 @@ from django.db.models.signals import post_save
 from django.dispatch import receiver
 
 
-# US-12: Perfil de usuario para almacenar configuraciones personalizadas
-# y datos adicionales del usuario.
+# US-12: Perfil de usuario para almacenar configuraciones personalizadas,
+# límite diario y estado del tour de bienvenida.
 class PerfilUsuario(models.Model):
     usuario = models.OneToOneField(
         User,
@@ -18,18 +18,22 @@ class PerfilUsuario(models.Model):
         decimal_places=2,
         default=6.00
     )
+    tour_visto = models.BooleanField(default=False)
+    tour_visto_en = models.DateTimeField(null=True, blank=True)
 
     def __str__(self):
         return f"Perfil de {self.usuario.username} {self.nombre_completo}"
 
 
-# Crear automáticamente el perfil al crear un usuario.
+# Crear o guardar automáticamente el perfil al interactuar con el usuario
 @receiver(post_save, sender=User)
 def crear_o_guardar_perfil_usuario(sender, instance, created, **kwargs):
     if created:
-        PerfilUsuario.objects.create(
+        PerfilUsuario.objects.get_or_create(
             usuario=instance,
-            nombre_completo=f"{instance.first_name} {instance.last_name}".strip()
+            defaults={
+                'nombre_completo': f"{instance.first_name} {instance.last_name}".strip()
+            }
         )
     else:
         if hasattr(instance, 'perfil'):
